@@ -12,6 +12,7 @@ from pathlib import Path
 from ..config import SETTINGS
 from ..llm.provider import LLMProvider
 from ..llm.types import (
+    AdmissionClassification,
     ClaimCategoryClassification,
     PolicyProposal,
     PreExistingClassification,
@@ -148,4 +149,31 @@ class LLMService:
             reasoning=reasoning,
             requires_review=confidence != "high",
             kb_size=len(rows),
+        )
+
+    def classify_admission_type(
+        self,
+        diagnosis: str,
+        benefit_name: str = "Inpatient & Surgery",
+    ) -> AdmissionClassification:
+        """Decide whether an admission was elective or an emergency (drives GC-3).
+
+        Normalises `admission_type` to {"elective","emergency","unknown"} and confidence
+        to {"high","low"}; `requires_review` = (confidence != "high"). No KB is consulted.
+        """
+
+        raw = self._provider.classify_admission_type(diagnosis, benefit_name)
+
+        admission = str(raw.get("admission_type", "unknown")).strip().lower()
+        if admission not in ("elective", "emergency", "unknown"):
+            admission = "unknown"
+        confidence = str(raw.get("confidence", "low")).strip().lower()
+        if confidence != "high":
+            confidence = "low"
+        reasoning = str(raw.get("reasoning", "")).strip()
+        return AdmissionClassification(
+            admission_type=admission,
+            confidence=confidence,
+            reasoning=reasoning,
+            requires_review=confidence != "high",
         )

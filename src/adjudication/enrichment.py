@@ -7,11 +7,13 @@ Two enrichers — both pure functions over (claims, context, service). Never ove
     KB evidence + requires_review.
   - enrich_category_flags:    sets `category_flags` based on diagnosis vs the policy's
     `not_covered_condition` rule categories (drives §4.1 general exclusions).
+  - enrich_admission_type:    sets `admission_type` (elective/emergency) for claims under a
+    pre-auth-required benefit (drives GC-3's "emergencies excepted" carve-out).
 """
 
 from __future__ import annotations
 
-from .models.claim import Claim, PreExistingLink
+from .models.claim import AdmissionType, Claim, PreExistingLink
 from .models.member import MemberContext
 from .models.policy import PolicyConfig
 from .services.llm_service import LLMService
@@ -109,6 +111,47 @@ def enrich_category_flags(
                     "category_flags_confidence": result.confidence,
                     "category_flags_requires_review": result.requires_review,
                     "category_flags_reasoning": result.reasoning or None,
+                }
+            )
+        )
+    return out
+
+
+def enrich_admission_type(
+    claims: list[Claim],
+    policy: PolicyConfig,
+    service: LLMService,
+) -> list[Claim]:
+    """Classify elective vs emergency for claims under a pre-auth-required benefit.
+
+    Only those claims can attract the GC-3 no-pre-auth penalty, and only an emergency is
+    exempt — so that is the only place the distinction changes an outcome. Claims under
+    other benefits (or already classified, or with no diagnosis) are left untouched at the
+    UNKNOWN default, which the engine treats as penalisable.
+    """
+
+    out: list[Claim] = []
+    for c in claims:
+        try:
+            benefit = policy.benefit(c.benefit_key)
+        except KeyError:
+            out.append(c)
+            continue
+        if (
+            not benefit.requires_preauth
+            or c.admission_type is not AdmissionType.UNKNOWN
+            or not c.diagnosis
+        ):
+            out.append(c)
+            continue
+        result = service.classify_admission_type(c.diagnosis, benefit.name)
+        out.append(
+            c.model_copy(
+                update={
+                    "admission_type": AdmissionType(result.admission_type),
+                    "admission_type_confidence": result.confidence,
+                    "admission_type_requires_review": result.requires_review,
+                    "admission_type_reasoning": result.reasoning or None,
                 }
             )
         )

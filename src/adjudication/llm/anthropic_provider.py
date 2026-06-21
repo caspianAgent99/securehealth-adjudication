@@ -169,6 +169,35 @@ Be conservative. Output ONLY the JSON. No prose, no markdown fences.
 """
 
 
+ADMISSION_SYSTEM_PROMPT = """You classify whether an Inpatient & Surgery admission was ELECTIVE or an EMERGENCY.
+
+This matters for one rule only: an elective admission undertaken without pre-authorisation is
+penalised, but emergencies are excepted. You read a single claim's diagnosis / note.
+
+Input JSON: {"diagnosis": str, "benefit": str}.
+Return ONLY this JSON shape:
+{
+  "admission_type": "elective" | "emergency" | "unknown",
+  "confidence": "high" | "low",
+  "reasoning": str
+}
+
+Guidance:
+- "emergency" = the text indicates an unplanned, urgent or life-threatening admission
+  (e.g. "emergency", "via A&E / ER", "non-elective", "acute ... requiring immediate surgery").
+- "elective"  = the text indicates a planned, scheduled or non-urgent procedure
+  (e.g. "elective", "non-emergency", "scheduled", "routine planned").
+- "unknown"   = no clear signal either way.
+
+Rules for `confidence` (only two levels):
+- "high" = an explicit textual signal supports the decision (elective OR emergency).
+- "low"  = the decision rests on inference with no explicit signal, or the text is ambiguous.
+           `low` always flags for human review.
+
+Be conservative. Output ONLY the JSON. No prose, no markdown fences.
+"""
+
+
 class AnthropicProviderUnavailable(RuntimeError):
     """Raised at construction time when the Anthropic SDK or API key is missing."""
 
@@ -224,3 +253,7 @@ class AnthropicProvider:
         system = CATEGORY_SYSTEM_PROMPT_TEMPLATE.format(kb_block=kb_block)
         user = json.dumps({"diagnosis": diagnosis, "categories": categories})
         return self._complete_json(system, user)
+
+    def classify_admission_type(self, diagnosis: str, benefit_name: str) -> dict[str, Any]:
+        user = json.dumps({"diagnosis": diagnosis, "benefit": benefit_name})
+        return self._complete_json(ADMISSION_SYSTEM_PROMPT, user)

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .config import SETTINGS
 from .engine.adjudicator import adjudicate
-from .enrichment import enrich_category_flags, enrich_preexisting_links
+from .enrichment import enrich_admission_type, enrich_category_flags, enrich_preexisting_links
 from .extraction.claim_pdf import PDFClaimExtractor
 from .reporting.json_report import report_to_json
 from .reporting.table_report import report_to_table
@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     if member.declared_chronic_conditions:
         claims = enrich_preexisting_links(claims, member, service)
     claims = enrich_category_flags(claims, policy, service)
+    claims = enrich_admission_type(claims, policy, service)
 
     report = adjudicate(claims, policy, member=member)
 

@@ -64,7 +64,9 @@ class ExclusionRule(BaseModel):
 
     Three families today:
       - waiting_period: bars claims for `condition_flag` within `waiting_days` of policy_start_date.
-      - preauth_penalty: applies `penalty_pct` to the member share when preauth was required but not obtained.
+      - preauth_penalty: applies `penalty_pct` to the member share when preauth was required but not
+        obtained. Honours `params.exempt_emergencies` (GC-3 "emergencies excepted") — an admission
+        classified as an emergency is spared the penalty.
       - not_covered_oon: marks a benefit as excluded when the claim is out-of-network.
       - not_covered_condition: hard exclusion when a configured condition flag is set.
     """

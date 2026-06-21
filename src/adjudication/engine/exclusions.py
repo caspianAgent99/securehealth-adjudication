@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from ..models.claim import Claim, NetworkStatus, PreAuthStatus
+from ..models.claim import AdmissionType, Claim, NetworkStatus, PreAuthStatus
 from ..models.member import MemberContext
 from ..models.policy import ExclusionRule, PolicyConfig
 from ..models.settlement import ReasoningStep
@@ -137,6 +137,30 @@ def category_verdict_is_material(
     return actual.excluded != flipped_b.excluded
 
 
+def admission_verdict_is_material(
+    claim: Claim,
+    policy: PolicyConfig,
+    member: MemberContext | None = None,
+) -> bool:
+    """Would flipping the admission between elective and emergency change whether a
+    pre-auth penalty fires? If yes, a low-confidence admission verdict matters and the
+    claim should be flagged for review; if no (e.g. pre-auth was obtained, or the benefit
+    needs none), the verdict is moot."""
+
+    actual = evaluate_exclusions(claim, policy, member=member)
+    flipped_type = (
+        AdmissionType.ELECTIVE
+        if claim.admission_type == AdmissionType.EMERGENCY
+        else AdmissionType.EMERGENCY
+    )
+    flipped = evaluate_exclusions(
+        claim.model_copy(update={"admission_type": flipped_type}),
+        policy,
+        member=member,
+    )
+    return actual.has_penalty != flipped.has_penalty
+
+
 def _format_reason(rule: ExclusionRule, extra: dict[str, Any] | None = None) -> str:
     params = dict(rule.params)
     if "penalty_pct" in params:
@@ -185,21 +209,32 @@ def _eval_not_covered_oon(rule: ExclusionRule, claim: Claim) -> tuple[bool, str 
     return False, None
 
 
+def _preauth_penalty_waived_for_emergency(rule: ExclusionRule, claim: Claim) -> bool:
+    """GC-3 penalises *elective* treatment only — "emergencies excepted". When the rule
+    opts in via `params.exempt_emergencies`, a positively-identified emergency admission
+    is spared. UNKNOWN (un-classified) is treated as penalisable, preserving behaviour
+    for claims whose electiveness was never assessed."""
+
+    return bool(rule.params.get("exempt_emergencies")) and claim.admission_type == AdmissionType.EMERGENCY
+
+
 def _eval_preauth_penalty(rule: ExclusionRule, claim: Claim, benefit_requires_preauth: bool) -> tuple[
     dict[str, Any] | None, str | None
 ]:
     if not benefit_requires_preauth:
         return None, None
-    if claim.preauth_status == PreAuthStatus.NOT_OBTAINED:
-        return (
-            {
-                "kind": "preauth_penalty",
-                "rule_id": rule.id,
-                "penalty_pct": float(rule.params.get("penalty_pct", 0.0)),
-            },
-            _format_reason(rule),
-        )
-    return None, None
+    if claim.preauth_status != PreAuthStatus.NOT_OBTAINED:
+        return None, None
+    if _preauth_penalty_waived_for_emergency(rule, claim):
+        return None, None
+    return (
+        {
+            "kind": "preauth_penalty",
+            "rule_id": rule.id,
+            "penalty_pct": float(rule.params.get("penalty_pct", 0.0)),
+        },
+        _format_reason(rule),
+    )
 
 
 def evaluate_exclusions(
@@ -288,6 +323,21 @@ def evaluate_exclusions(
                         value=f"penalty {int(modifier['penalty_pct'] * 100)}%",
                         source=f"rule:{rule.id}",
                         note=reason,
+                    )
+                )
+            elif (
+                benefit.requires_preauth
+                and claim.preauth_status == PreAuthStatus.NOT_OBTAINED
+                and _preauth_penalty_waived_for_emergency(rule, claim)
+            ):
+                # No pre-auth, but the penalty is waived because the admission is an emergency.
+                # Record it so the audit trail explains the *absence* of the penalty.
+                steps.append(
+                    ReasoningStep(
+                        label=f"rule:{rule.id}",
+                        value="penalty_waived_emergency",
+                        source=f"rule:{rule.id}",
+                        note="GC-3 pre-authorisation penalty waived: emergency admission (emergencies excepted).",
                     )
                 )
 
