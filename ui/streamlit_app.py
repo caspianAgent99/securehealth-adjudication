@@ -12,13 +12,43 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import httpx
 import streamlit as st
 
+# Make `api` and `adjudication` importable when Streamlit runs this file directly
+# (Streamlit Cloud executes ui/streamlit_app.py without installing the package).
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+for _p in (str(_REPO_ROOT), str(_REPO_ROOT / "src")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+
+# ---------- transport ----------
+# If API_BASE_URL is set  -> talk to that remote API over the network (split local dev, or a
+#                            separately-hosted backend).
+# If it is NOT set        -> mount the FastAPI app in-process via ASGI transport. This is what
+#                            Streamlit Community Cloud needs: it runs a single process, so there
+#                            is no separate uvicorn to connect to. Same routes, no socket.
+_API_BASE = os.getenv("API_BASE_URL")
+
+if _API_BASE:
+    _client = httpx.Client(base_url=_API_BASE, timeout=180.0)
+else:
+    from fastapi.testclient import TestClient
+
+    from api.main import app as _api_app  # existing FastAPI app, unchanged
+
+    # TestClient drives the ASGI app synchronously (Streamlit's script run is sync).
+    # raise_server_exceptions=False so a 5xx comes back as a response the helpers can
+    # surface in the UI, instead of bubbling up as a Python exception.
+    _client = TestClient(_api_app, base_url="http://engine", raise_server_exceptions=False)
+
+# What we display to the user when a call fails.
+API_BASE = _API_BASE or "in-process engine (ASGI)"
 
 st.set_page_config(page_title="Claim Adjudication Engine", layout="centered")
 
@@ -27,7 +57,7 @@ st.set_page_config(page_title="Claim Adjudication Engine", layout="centered")
 
 def _get(path: str) -> tuple[int, Any]:
     try:
-        r = httpx.get(f"{API_BASE}{path}", timeout=60.0)
+        r = _client.get(path)
         try:
             return r.status_code, r.json()
         except ValueError:
@@ -38,7 +68,7 @@ def _get(path: str) -> tuple[int, Any]:
 
 def _post(path: str, json_body: Any = None, files: Any = None) -> tuple[int, Any]:
     try:
-        r = httpx.post(f"{API_BASE}{path}", json=json_body, files=files, timeout=180.0)
+        r = _client.post(path, json=json_body, files=files)
         try:
             return r.status_code, r.json()
         except ValueError:
@@ -49,7 +79,7 @@ def _post(path: str, json_body: Any = None, files: Any = None) -> tuple[int, Any
 
 def _put(path: str, json_body: Any) -> tuple[int, Any]:
     try:
-        r = httpx.put(f"{API_BASE}{path}", json=json_body, timeout=60.0)
+        r = _client.put(path, json=json_body)
         try:
             return r.status_code, r.json()
         except ValueError:
@@ -60,7 +90,7 @@ def _put(path: str, json_body: Any) -> tuple[int, Any]:
 
 def _delete(path: str) -> tuple[int, Any]:
     try:
-        r = httpx.delete(f"{API_BASE}{path}", timeout=30.0)
+        r = _client.delete(path)
         try:
             return r.status_code, r.json()
         except ValueError:
