@@ -535,9 +535,17 @@ def render_draft(draft: dict[str, Any]) -> None:
 # ============================================================
 
 def _render_policy_summary(policy: dict[str, Any]) -> None:
-    c1, c2 = st.columns(2)
-    c1.metric("Annual Aggregate Limit", _aed(policy.get("aggregate_annual_limit")))
-    c2.metric("Plan year", f"{policy.get('plan_year_start')} → {policy.get('plan_year_end')}")
+    st.dataframe(
+        [
+            {"Field": "Annual Aggregate Limit", "Value": _aed(policy.get("aggregate_annual_limit"))},
+            {
+                "Field": "Plan year",
+                "Value": f"{policy.get('plan_year_start')} → {policy.get('plan_year_end')}",
+            },
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
     endorsed = {e["benefit_key"] for e in policy.get("endorsements", [])}
     benefits_rows = []
@@ -631,9 +639,14 @@ def _render_claim_bundle(bundle: dict[str, Any], *, persisted: bool) -> None:
     st.markdown("##### Member context")
     st.write(member)
 
-    c1, c2 = st.columns(2)
-    c1.metric("Insurer total", _aed(report.get("insurer_total")))
-    c2.metric("Member total", _aed(report.get("member_total")))
+    st.dataframe(
+        [
+            {"Total": "Insurer total", "Amount": _aed(report.get("insurer_total"))},
+            {"Total": "Member total", "Amount": _aed(report.get("member_total"))},
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
     rows = []
     for s in report.get("settlements", []):
