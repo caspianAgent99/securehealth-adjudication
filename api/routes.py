@@ -37,6 +37,35 @@ from .dependencies import (
 router = APIRouter()
 
 
+def _llm_error(e: Exception) -> HTTPException:
+    """Translate any failure from the LLM layer (missing key, auth failure, bad model,
+    unparseable response) into a clean 502 the UI can display, instead of a bare 500."""
+
+    return HTTPException(
+        status_code=502,
+        detail={
+            "error": "llm_unavailable",
+            "message": str(e) or e.__class__.__name__,
+            "hint": (
+                "This step needs the Anthropic API. Set a valid ANTHROPIC_API_KEY "
+                "(on Streamlit Cloud: Manage app → Settings → Secrets) and a valid "
+                "ANTHROPIC_MODEL. The model currently configured is checked at call time."
+            ),
+        },
+    )
+
+
+def _llm_service_or_502():
+    """Construct the LLMService, converting a missing/broken provider into a clean 502."""
+
+    try:
+        return get_llm_service()
+    except HTTPException:
+        raise
+    except Exception as e:  # AnthropicProviderUnavailable, ImportError, etc.
+        raise _llm_error(e) from e
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -127,8 +156,13 @@ async def draft_from_pdf(file: UploadFile = File(...)) -> dict[str, Any]:
         except UnicodeDecodeError as exc:
             raise HTTPException(status_code=400, detail="cannot decode policy file as UTF-8") from exc
 
-    extractor = LLMPolicyExtractor(get_llm_service())
-    result = extractor.extract(text)
+    extractor = LLMPolicyExtractor(_llm_service_or_502())
+    try:
+        result = extractor.extract(text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _llm_error(e) from e
     if result.policy is None:
         raw = result.raw or {}
         # Save the raw proposal anyway so the user can fix structural issues in the editor.
@@ -252,8 +286,13 @@ async def propose_policy(file: UploadFile = File(...)) -> dict[str, Any]:
         except UnicodeDecodeError:
             raise HTTPException(status_code=400, detail="cannot decode policy file as UTF-8")
 
-    extractor = LLMPolicyExtractor(get_llm_service())
-    result = extractor.extract(text)
+    extractor = LLMPolicyExtractor(_llm_service_or_502())
+    try:
+        result = extractor.extract(text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _llm_error(e) from e
     return {
         "proposed_policy": result.policy.model_dump(mode="json") if result.policy else None,
         "raw_proposal": result.raw,
@@ -299,10 +338,15 @@ async def extract_claims(
     except ClaimValidationError as e:
         raise HTTPException(status_code=400, detail={"validation_errors": e.errors}) from e
 
-    service = get_llm_service()
-    if sheet.member.declared_chronic_conditions:
-        claims = enrich_preexisting_links(claims, sheet.member, service)
-    claims = enrich_category_flags(claims, policy, service)
+    service = _llm_service_or_502()
+    try:
+        if sheet.member.declared_chronic_conditions:
+            claims = enrich_preexisting_links(claims, sheet.member, service)
+        claims = enrich_category_flags(claims, policy, service)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _llm_error(e) from e
 
     return {
         "member": sheet.member.model_dump(mode="json"),
@@ -339,10 +383,15 @@ async def claims_run(
     except ClaimValidationError as e:
         raise HTTPException(status_code=400, detail={"validation_errors": e.errors}) from e
 
-    service = get_llm_service()
-    if sheet.member.declared_chronic_conditions:
-        claims = enrich_preexisting_links(claims, sheet.member, service)
-    claims = enrich_category_flags(claims, policy, service)
+    service = _llm_service_or_502()
+    try:
+        if sheet.member.declared_chronic_conditions:
+            claims = enrich_preexisting_links(claims, sheet.member, service)
+        claims = enrich_category_flags(claims, policy, service)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _llm_error(e) from e
 
     report = adjudicate(claims, policy, member=sheet.member)
     answers = QuestionsService.answer_all(policy, report)
@@ -403,7 +452,7 @@ def _claims_from_payload(payload: dict[str, Any], policy: PolicyConfig):
         claims = validate_claim_rows(payload["claims"], policy)
     except ClaimValidationError as e:
         raise HTTPException(status_code=400, detail={"validation_errors": e.errors}) from e
-    service = get_llm_service()
+    service = _llm_service_or_502()
     from adjudication.models.member import MemberContext
 
     member = (
@@ -411,9 +460,14 @@ def _claims_from_payload(payload: dict[str, Any], policy: PolicyConfig):
         if payload.get("member")
         else MemberContext()
     )
-    if member.declared_chronic_conditions:
-        claims = enrich_preexisting_links(claims, member, service)
-    claims = enrich_category_flags(claims, policy, service)
+    try:
+        if member.declared_chronic_conditions:
+            claims = enrich_preexisting_links(claims, member, service)
+        claims = enrich_category_flags(claims, policy, service)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _llm_error(e) from e
     return claims, member
 
 

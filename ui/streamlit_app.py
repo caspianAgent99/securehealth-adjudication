@@ -99,6 +99,25 @@ def _delete(path: str) -> tuple[int, Any]:
         return 0, str(e)
 
 
+# ---------- error rendering ----------
+
+def _show_error(payload: Any) -> None:
+    """Surface an API error body as a readable Streamlit error.
+
+    Backend errors come back as {"detail": {"error", "message", "hint"}} (or a plain
+    string). Pull out the human-readable parts instead of dumping the raw dict.
+    """
+
+    detail = payload.get("detail") if isinstance(payload, dict) else payload
+    if isinstance(detail, dict):
+        msg = detail.get("message") or detail.get("error") or json.dumps(detail)
+        st.error(msg)
+        if detail.get("hint"):
+            st.caption(detail["hint"])
+    else:
+        st.error(str(detail))
+
+
 # ---------- formatters ----------
 
 def _aed(v: Any) -> str:
@@ -266,7 +285,7 @@ def render_empty() -> None:
         with st.spinner("Calling Claude…"):
             status, payload = _post("/policy/draft/from-pdf", files=files)
         if status != 200:
-            st.error(f"Extraction failed: {payload}")
+            _show_error(payload)
             return
         if not payload.get("structurally_valid"):
             st.warning("Schema validation flagged issues — you can fix them in the editor:")
@@ -586,7 +605,7 @@ def render_locked(policy: dict[str, Any]) -> None:
     with st.spinner("Extracting claim + adjudicating + answering Q1–Q6…"):
         status, bundle = _post("/claims/run", files=files)
     if status != 200:
-        st.error(bundle)
+        _show_error(bundle)
         return
     _render_claim_bundle(bundle, persisted=True)
 
