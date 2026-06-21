@@ -215,14 +215,16 @@ def _render_q6_card(card: dict[str, Any]) -> None:
     st.dataframe(table_rows, use_container_width=True, hide_index=True)
 
     st.markdown("**Year totals**")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Insurer total", _aed(totals.get("insurer_total")))
-    c2.metric("Member total", _aed(totals.get("member_total")))
-    c3.metric("Aggregate limit", _aed(totals.get("aggregate_limit")))
-    c4.metric("Aggregate remaining", _aed(totals.get("aggregate_remaining")))
-
-    if card.get("sources"):
-        st.caption("Sources: " + " · ".join(f"`{s}`" for s in card["sources"]))
+    st.dataframe(
+        [
+            {"Total": "Insurer total", "Amount": _aed(totals.get("insurer_total"))},
+            {"Total": "Member total", "Amount": _aed(totals.get("member_total"))},
+            {"Total": "Aggregate limit", "Amount": _aed(totals.get("aggregate_limit"))},
+            {"Total": "Aggregate remaining", "Amount": _aed(totals.get("aggregate_remaining"))},
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
     with st.expander("Machine-readable JSON"):
         st.json(card)
