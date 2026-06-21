@@ -3,13 +3,11 @@
 .env.*
 !.env.example
 
-# --- Excluded by request (pending manual review) ---
+# --- Excluded by request ---
 docs/
 scripts/
 data/source_docs/
 data/test_inputs/
-README.md
-DESIGN.md
 
 # --- Python ---
 .venv/
