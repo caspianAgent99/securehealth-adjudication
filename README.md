@@ -123,3 +123,7 @@ The LLM is allowed a deliberately narrow surface, and every output is checked be
 - **Two claim fields** — "is this diagnosis linked to the declared chronic condition?" (§4.2) and "is it an excluded category?" (§4.1). The classifier is **grounded in the curated KB** (only the rows for the declared condition / configured categories are put in context), must **cite KB row ids** as evidence, and any low-confidence verdict that would change the outcome is **flagged for human review**.
 
 The LLM never sees a claim amount, never computes a payment, never decides an exclusion outcome, and never touches the accumulator. All arithmetic and all decisions are deterministic code. Tests use an in-repo stub (`tests/_fakes.py`), so the suite is offline and reproducible. See [`DESIGN.md`](DESIGN.md) §3 for the full methodology and [`WHY_NOT_RAG.md`](WHY_NOT_RAG.md) for why retrieval-augmented generation is the wrong tool for the reasoning here.
+
+---
+
+_SecureHealth-style claim adjudication — built for generalisation, auditability, and a deterministic core._
