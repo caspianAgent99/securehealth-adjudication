@@ -1,0 +1,22 @@
+# Runtime dependencies — install on a fresh machine with:
+#   python3 -m venv .venv
+#   . .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# Mirrors pyproject.toml; pinned to "compatible release" minimums that the codebase
+# was developed against. Transitive deps are resolved by pip.
+
+pydantic>=2.5
+fastapi>=0.110
+uvicorn[standard]>=0.27
+streamlit>=1.30
+python-dotenv>=1.0
+pdfplumber>=0.10
+anthropic>=0.25
+httpx>=0.26
+python-multipart>=0.0.9
+tabulate>=0.9
+
+# Dev / experiment tooling (used by `pytest` and `scripts/make_member_b_pdf.py`).
+pytest>=8.0
+reportlab>=4.0

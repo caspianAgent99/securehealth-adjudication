@@ -1,0 +1,143 @@
+{
+  "policy_ref": "GF-SH-B/2025",
+  "plan_year_start": "2025-01-01",
+  "plan_year_end": "2025-12-31",
+  "policy_start_date": "2025-01-01",
+  "aggregate_annual_limit": 250000.0,
+  "benefits": [
+    {
+      "key": "outpatient_consultation",
+      "name": "Outpatient Consultation",
+      "annual_sub_limit": 8000.0,
+      "in_network_coinsurance": 0.1,
+      "out_of_network_coinsurance": 0.3,
+      "deductible": 50.0,
+      "requires_preauth": false,
+      "notes": "AED 50 deductible per consultation visit applied before coinsurance."
+    },
+    {
+      "key": "diagnostics",
+      "name": "Diagnostics (lab & imaging)",
+      "annual_sub_limit": 10000.0,
+      "in_network_coinsurance": 0.1,
+      "out_of_network_coinsurance": 0.3,
+      "deductible": 0.0,
+      "requires_preauth": false,
+      "notes": "No deductible applies."
+    },
+    {
+      "key": "pharmacy",
+      "name": "Prescribed Medication (Pharmacy)",
+      "annual_sub_limit": 6000.0,
+      "in_network_coinsurance": 0.2,
+      "out_of_network_coinsurance": null,
+      "deductible": 0.0,
+      "requires_preauth": false,
+      "notes": "Out-of-network pharmacy is not covered."
+    },
+    {
+      "key": "physiotherapy",
+      "name": "Physiotherapy",
+      "annual_sub_limit": 2500.0,
+      "in_network_coinsurance": 0.2,
+      "out_of_network_coinsurance": 0.3,
+      "deductible": 0.0,
+      "requires_preauth": false,
+      "notes": "See Endorsement E1 for enhancements."
+    },
+    {
+      "key": "inpatient_surgery",
+      "name": "Inpatient & Surgery",
+      "annual_sub_limit": null,
+      "in_network_coinsurance": 0.0,
+      "out_of_network_coinsurance": 0.2,
+      "deductible": 0.0,
+      "requires_preauth": true,
+      "notes": "Within Aggregate Limit. Pre-authorisation required at least 48 hours before elective admission (emergencies excepted)."
+    }
+  ],
+  "endorsements": [
+    {
+      "id": "E1",
+      "benefit_key": "physiotherapy",
+      "overrides": {
+        "in_network_coinsurance": 0.1,
+        "annual_sub_limit": 4000
+      },
+      "source": "Section 5 \u2014 Endorsement E1 (Physiotherapy Enhancement)",
+      "effective_from": "2025-01-01",
+      "effective_to": null
+    }
+  ],
+  "exclusion_rules": [
+    {
+      "id": "WP-PREEX-6MO",
+      "type": "waiting_period",
+      "params": {
+        "condition_flag": "pre_existing",
+        "waiting_months": 6
+      },
+      "applies_to_benefits": null,
+      "reason_template": "Per Exclusion 4.2, treatment of a Chronic or Pre-existing Condition is not payable during the first six (6) months from the Inception Date."
+    },
+    {
+      "id": "PREAUTH-PENALTY-20",
+      "type": "preauth_penalty",
+      "params": {
+        "penalty_pct": 0.2
+      },
+      "applies_to_benefits": [
+        "inpatient_surgery"
+      ],
+      "reason_template": "Per GC-3, elective Inpatient & Surgery treatment undertaken without Pre-authorisation is reduced by 20%."
+    },
+    {
+      "id": "OON-PHARMACY-NOT-COVERED",
+      "type": "not_covered_oon",
+      "params": {},
+      "applies_to_benefits": [
+        "pharmacy"
+      ],
+      "reason_template": "Per Section 2 Table of Benefits, Prescribed Medication (Pharmacy) is not covered Out-of-Network."
+    },
+    {
+      "id": "EX-4.1-COSMETIC",
+      "type": "not_covered_condition",
+      "params": {
+        "condition_flag": "cosmetic"
+      },
+      "applies_to_benefits": null,
+      "reason_template": "Per Exclusion 4.1, cosmetic treatment is not payable."
+    },
+    {
+      "id": "EX-4.1-SELF-INFLICTED",
+      "type": "not_covered_condition",
+      "params": {
+        "condition_flag": "self_inflicted"
+      },
+      "applies_to_benefits": null,
+      "reason_template": "Per Exclusion 4.1, self-inflicted injury is not payable."
+    },
+    {
+      "id": "EX-4.1-EXPERIMENTAL",
+      "type": "not_covered_condition",
+      "params": {
+        "condition_flag": "experimental"
+      },
+      "applies_to_benefits": null,
+      "reason_template": "Per Exclusion 4.1, experimental or unproven treatment is not payable."
+    }
+  ],
+  "calculation_order": [
+    "cap_to_eligible",
+    "apply_deductible",
+    "apply_coinsurance"
+  ],
+  "approved_by": "llm-proposal",
+  "approved_at": "2025-01-01",
+  "metadata": {
+    "source_doc": "SecureHealth GCC Group Medical Plan \u2014 Plan B \u00b7 Policy Wording",
+    "doc_ref": "GF-SH-B/2025",
+    "currency": "AED"
+  }
+}
