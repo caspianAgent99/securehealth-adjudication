@@ -11,7 +11,11 @@ from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 
 from adjudication.config import SETTINGS
 from adjudication.engine.adjudicator import adjudicate
-from adjudication.enrichment import enrich_category_flags, enrich_preexisting_links
+from adjudication.enrichment import (
+    enrich_admission_type,
+    enrich_category_flags,
+    enrich_preexisting_links,
+)
 from adjudication.extraction.claim_pdf import PDFClaimExtractor
 from adjudication.extraction.policy_llm import LLMPolicyExtractor
 from adjudication.models.claim import Claim
@@ -343,6 +347,7 @@ async def extract_claims(
         if sheet.member.declared_chronic_conditions:
             claims = enrich_preexisting_links(claims, sheet.member, service)
         claims = enrich_category_flags(claims, policy, service)
+        claims = enrich_admission_type(claims, policy, service)
     except HTTPException:
         raise
     except Exception as e:
@@ -388,6 +393,7 @@ async def claims_run(
         if sheet.member.declared_chronic_conditions:
             claims = enrich_preexisting_links(claims, sheet.member, service)
         claims = enrich_category_flags(claims, policy, service)
+        claims = enrich_admission_type(claims, policy, service)
     except HTTPException:
         raise
     except Exception as e:
@@ -464,6 +470,7 @@ def _claims_from_payload(payload: dict[str, Any], policy: PolicyConfig):
         if member.declared_chronic_conditions:
             claims = enrich_preexisting_links(claims, member, service)
         claims = enrich_category_flags(claims, policy, service)
+        claims = enrich_admission_type(claims, policy, service)
     except HTTPException:
         raise
     except Exception as e:

@@ -7,7 +7,13 @@ from datetime import date
 import pytest
 
 from adjudication.engine.exclusions import _add_months, evaluate_exclusions
-from adjudication.models.claim import Claim, NetworkStatus, PreAuthStatus, PreExistingLink
+from adjudication.models.claim import (
+    AdmissionType,
+    Claim,
+    NetworkStatus,
+    PreAuthStatus,
+    PreExistingLink,
+)
 
 
 def _claim(**overrides) -> Claim:
@@ -84,6 +90,54 @@ def test_preauth_penalty_modifier_on_inpatient_without_preauth(policy):
     assert out.excluded is False  # not a hard exclude
     assert out.has_penalty is True
     assert any(m["kind"] == "preauth_penalty" and abs(m["penalty_pct"] - 0.20) < 1e-9 for m in out.modifiers)
+
+
+def test_preauth_penalty_waived_for_emergency_admission(policy):
+    # GC-3 "emergencies excepted": no pre-auth, but emergency → no penalty.
+    c = _claim(
+        claim_id="T-EMERGENCY",
+        service_date=date(2025, 10, 3),
+        benefit_key="inpatient_surgery",
+        billed_amount=18000.0,
+        eligible_amount=18000.0,
+        preauth_status=PreAuthStatus.NOT_OBTAINED,
+        admission_type=AdmissionType.EMERGENCY,
+    )
+    out = evaluate_exclusions(c, policy)
+    assert out.excluded is False
+    assert out.has_penalty is False
+    assert out.modifiers == []
+    # the absence of the penalty is recorded for the audit trail
+    assert any(s.value == "penalty_waived_emergency" for s in out.reasoning)
+
+
+def test_preauth_penalty_applies_to_elective_admission(policy):
+    c = _claim(
+        claim_id="T-ELECTIVE",
+        service_date=date(2025, 10, 3),
+        benefit_key="inpatient_surgery",
+        billed_amount=18000.0,
+        eligible_amount=18000.0,
+        preauth_status=PreAuthStatus.NOT_OBTAINED,
+        admission_type=AdmissionType.ELECTIVE,
+    )
+    out = evaluate_exclusions(c, policy)
+    assert out.has_penalty is True
+
+
+def test_preauth_penalty_applies_when_admission_unknown(policy):
+    # UNKNOWN (never classified) preserves the original behaviour: penalty still applies.
+    c = _claim(
+        claim_id="T-UNKNOWN",
+        service_date=date(2025, 10, 3),
+        benefit_key="inpatient_surgery",
+        billed_amount=18000.0,
+        eligible_amount=18000.0,
+        preauth_status=PreAuthStatus.NOT_OBTAINED,
+        admission_type=AdmissionType.UNKNOWN,
+    )
+    out = evaluate_exclusions(c, policy)
+    assert out.has_penalty is True
 
 
 def test_add_months_handles_month_lengths():

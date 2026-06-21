@@ -5,6 +5,7 @@
 
 # --- Excluded by request ---
 docs/
+scenarios/
 scripts/
 data/source_docs/
 data/test_inputs/

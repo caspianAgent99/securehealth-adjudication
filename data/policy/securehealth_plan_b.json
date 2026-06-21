@@ -84,7 +84,8 @@
       "id": "PREAUTH-PENALTY-20",
       "type": "preauth_penalty",
       "params": {
-        "penalty_pct": 0.2
+        "penalty_pct": 0.2,
+        "exempt_emergencies": true
       },
       "applies_to_benefits": [
         "inpatient_surgery"

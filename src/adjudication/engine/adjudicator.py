@@ -13,6 +13,7 @@ from ..models.settlement import ClaimSettlement, Decision, ReasoningStep, Settle
 from .accumulator import LimitAccumulator
 from .calculation import calculate_claim
 from .exclusions import (
+    admission_verdict_is_material,
     category_verdict_is_material,
     evaluate_exclusions,
     preexisting_verdict_is_material,
@@ -49,15 +50,28 @@ def _category_review_summary(
     )
 
 
+def _admission_review_summary(
+    claim: Claim, policy: PolicyConfig, member: MemberContext | None
+) -> str | None:
+    if not claim.admission_type_requires_review:
+        return None
+    if not admission_verdict_is_material(claim, policy, member):
+        return None
+    return (
+        f"Admission classifier confidence={claim.admission_type_confidence}. "
+        f"admission_type={claim.admission_type.value}. "
+        f"Reasoning: {claim.admission_type_reasoning or '(none)'}"
+    )
+
+
 def _review_metadata(
     claim: Claim, policy: PolicyConfig, member: MemberContext | None = None
 ) -> tuple[bool, str | None]:
     """Decide whether this claim should be flagged for human review.
 
-    Flag if either the pre-existing classifier OR the category classifier returned a
-    non-`high` confidence verdict AND that verdict was material (the policy has a
-    rule that actually consumes it for this claim's benefit). When both fire, both
-    summaries are surfaced.
+    Flag if the pre-existing, category, OR admission classifier returned a non-`high`
+    confidence verdict AND that verdict was material (the policy has a rule that actually
+    consumes it for this claim). When several fire, all summaries are surfaced.
     """
 
     summaries: list[str] = []
@@ -67,6 +81,9 @@ def _review_metadata(
     cat = _category_review_summary(claim, policy, member)
     if cat:
         summaries.append(cat)
+    adm = _admission_review_summary(claim, policy, member)
+    if adm:
+        summaries.append(adm)
     if not summaries:
         return False, None
     return True, " | ".join(summaries)

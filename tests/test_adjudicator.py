@@ -110,3 +110,66 @@ def test_review_flag_suppressed_when_verdict_is_not_material(policy, karim_claim
         raise AssertionError(
             "C3 service date is past the §4.2 waiting period; review flag must be suppressed."
         )
+
+
+def test_emergency_surgery_without_preauth_is_not_penalised(policy, llm_service):
+    """GC-3 'emergencies excepted', end-to-end through the admission enricher.
+
+    An emergency admission without pre-authorisation must be paid in full (0% in-network
+    cover, no 20% penalty) — the gap the engine previously had.
+    """
+
+    from datetime import date
+
+    from adjudication.enrichment import enrich_admission_type
+    from adjudication.models.claim import AdmissionType, Claim, NetworkStatus, PreAuthStatus
+
+    claim = Claim(
+        claim_id="E1",
+        service_date=date(2025, 9, 20),
+        benefit_key="inpatient_surgery",
+        network_status=NetworkStatus.IN_NETWORK,
+        billed_amount=25000.0,
+        eligible_amount=25000.0,
+        preauth_status=PreAuthStatus.NOT_OBTAINED,
+        diagnosis="Emergency appendectomy (acute, non-elective) admitted via A&E, no pre-authorisation",
+    )
+    enriched = enrich_admission_type([claim], policy, llm_service)
+    assert enriched[0].admission_type is AdmissionType.EMERGENCY
+
+    report = adjudicate(enriched, policy)
+    s = report.settlements[0]
+    assert s.decision == Decision.PAYABLE
+    assert s.penalty_amount == 0.0
+    assert s.insurer_paid == 25000.0
+    assert s.member_paid == 0.0
+    assert s.requires_review is False
+
+
+def test_elective_surgery_without_preauth_still_penalised(policy, llm_service):
+    """Counterpart: an explicitly elective admission without pre-auth keeps the 20% penalty."""
+
+    from datetime import date
+
+    from adjudication.enrichment import enrich_admission_type
+    from adjudication.models.claim import AdmissionType, Claim, NetworkStatus, PreAuthStatus
+
+    claim = Claim(
+        claim_id="E2",
+        service_date=date(2025, 9, 20),
+        benefit_key="inpatient_surgery",
+        network_status=NetworkStatus.IN_NETWORK,
+        billed_amount=25000.0,
+        eligible_amount=25000.0,
+        preauth_status=PreAuthStatus.NOT_OBTAINED,
+        diagnosis="Elective knee arthroscopy (non-emergency), no pre-authorisation obtained",
+    )
+    enriched = enrich_admission_type([claim], policy, llm_service)
+    assert enriched[0].admission_type is AdmissionType.ELECTIVE
+
+    report = adjudicate(enriched, policy)
+    s = report.settlements[0]
+    assert s.decision == Decision.PAYABLE_WITH_PENALTY
+    assert s.penalty_amount == 5000.0
+    assert s.insurer_paid == 20000.0
+    assert s.member_paid == 5000.0

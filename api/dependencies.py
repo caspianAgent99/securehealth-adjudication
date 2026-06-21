@@ -9,7 +9,11 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from adjudication.config import SETTINGS
-from adjudication.enrichment import enrich_category_flags, enrich_preexisting_links
+from adjudication.enrichment import (
+    enrich_admission_type,
+    enrich_category_flags,
+    enrich_preexisting_links,
+)
 from adjudication.extraction.claim_pdf import PDFClaimExtractor
 from adjudication.models.policy import PolicyConfig
 from adjudication.services.llm_service import LLMService
@@ -81,6 +85,7 @@ def get_default_claims_with_member():
     if sheet.member.declared_chronic_conditions:
         claims = enrich_preexisting_links(claims, sheet.member, service)
     claims = enrich_category_flags(claims, policy, service)
+    claims = enrich_admission_type(claims, policy, service)
     return claims, sheet.member
 
 

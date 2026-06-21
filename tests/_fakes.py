@@ -99,7 +99,7 @@ PLAN_B_FIXTURE: dict[str, Any] = {
         {
             "id": "PREAUTH-PENALTY-20",
             "type": "preauth_penalty",
-            "params": {"penalty_pct": 0.20},
+            "params": {"penalty_pct": 0.20, "exempt_emergencies": True},
             "applies_to_benefits": ["inpatient_surgery"],
             "reason_template": (
                 "GC-3: Pre-authorisation not obtained for elective Inpatient & Surgery; "
@@ -255,3 +255,30 @@ class FakeAnthropicProvider:
             "confidence": confidence,
             "reasoning": " ; ".join(notes) if notes else "No categories matched.",
         }
+
+    def classify_admission_type(self, diagnosis: str, benefit_name: str) -> dict[str, Any]:
+        dx = (diagnosis or "").strip().lower()
+        if not dx:
+            return {"admission_type": "unknown", "confidence": "low",
+                    "reasoning": "No diagnosis text provided."}
+        # Negation-aware: "non-emergency" must not count as "emergency", and "non-elective"
+        # must not count as "elective". Blank out each negated phrase before substring checks.
+        dx_for_elective = dx.replace("non-elective", "").replace("non elective", "")
+        dx_for_emergency = dx.replace("non-emergency", "").replace("non emergency", "")
+        is_elective = (
+            any(k in dx_for_elective for k in ("elective", "scheduled", "planned"))
+            or "non-emergency" in dx or "non emergency" in dx
+        )
+        is_emergency = (
+            any(k in dx_for_emergency for k in (
+                "emergency", "emergent", "a&e", "accident and emergency", "via er", "life-threatening"))
+            or "non-elective" in dx or "non elective" in dx
+        )
+        if is_emergency and not is_elective:
+            return {"admission_type": "emergency", "confidence": "high",
+                    "reasoning": f"Emergency marker found in {diagnosis!r}."}
+        if is_elective and not is_emergency:
+            return {"admission_type": "elective", "confidence": "high",
+                    "reasoning": f"Elective marker found in {diagnosis!r}."}
+        return {"admission_type": "unknown", "confidence": "low",
+                "reasoning": "No clear (or conflicting) elective/emergency signal in the diagnosis."}

@@ -37,3 +37,11 @@ class ClaimCategoryClassification:
     reasoning: str
     requires_review: bool                 # derived: confidence != "high"  (i.e. confidence == "low")
     kb_size: int = 0                      # how many KB rows were available for these categories
+
+
+@dataclass
+class AdmissionClassification:
+    admission_type: str                   # one of "elective" | "emergency" | "unknown"
+    confidence: str                       # one of "high" | "low"
+    reasoning: str
+    requires_review: bool                 # derived: confidence != "high"  (i.e. confidence == "low")

@@ -37,3 +37,15 @@ class LLMProvider(Protocol):
         requested categories. The classifier MUST cite KB row ids in `evidence_ids`
         when a flag is supported by a direct match.
         """
+
+    def classify_admission_type(
+        self,
+        diagnosis: str,
+        benefit_name: str,
+    ) -> dict[str, Any]:
+        """Return a raw dict {admission_type, confidence, reasoning}.
+
+        Decides whether an Inpatient & Surgery admission was 'elective' or an
+        'emergency' (GC-3's pre-auth penalty exempts emergencies). No KB is used —
+        the signal is read from the diagnosis text.
+        """

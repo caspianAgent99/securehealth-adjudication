@@ -21,6 +21,20 @@ class NetworkStatus(str, Enum):
     OUT_OF_NETWORK = "out_of_network"
 
 
+class AdmissionType(str, Enum):
+    """Elective vs emergency admission.
+
+    Drives GC-3: the no-pre-authorisation penalty applies to *elective* Inpatient &
+    Surgery only — "emergencies excepted". UNKNOWN is the default when no classifier
+    has run; the engine treats UNKNOWN as penalisable, so behaviour is unchanged unless
+    an admission is positively identified as an emergency.
+    """
+
+    ELECTIVE = "elective"
+    EMERGENCY = "emergency"
+    UNKNOWN = "unknown"
+
+
 class PreExistingLink(BaseModel):
     """Derived: is this claim related to a pre-existing condition? With reasoning + KB audit trail."""
 
@@ -86,6 +100,25 @@ class Claim(BaseModel):
     category_flags_reasoning: str | None = Field(
         default=None,
         description="Reasoning text from the classifier when category_flags is non-empty.",
+    )
+    admission_type: AdmissionType = Field(
+        default=AdmissionType.UNKNOWN,
+        description=(
+            "Elective/emergency status of an admission. Only meaningful for benefits that "
+            "require pre-authorisation; drives GC-3's 'emergencies excepted' carve-out."
+        ),
+    )
+    admission_type_confidence: str = Field(
+        default="high",
+        description="'high' or 'low' confidence the admission classifier reported.",
+    )
+    admission_type_requires_review: bool = Field(
+        default=False,
+        description="True when the admission classifier flagged the decision for human attention.",
+    )
+    admission_type_reasoning: str | None = Field(
+        default=None,
+        description="Reasoning text from the admission classifier.",
     )
 
     @property
